@@ -1,6 +1,9 @@
 import { OpenAIService } from '@/lib/openai';
 import { NextResponse } from 'next/server';
 
+const MAX_DESCRIPTION_LEN = 2000;
+const MAX_PROMPT_LEN = 4000;
+
 export async function POST(request: Request) {
   try {
     const apiKey = request.headers.get('X-OpenAI-Key');
@@ -12,9 +15,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 });
     }
 
+    if (textAnalysisPrompt && textAnalysisPrompt.length > MAX_PROMPT_LEN) {
+      return NextResponse.json({ error: 'Custom prompt is too long' }, { status: 413 });
+    }
+
     const { description } = await request.json();
-    if (!description) {
+    if (!description || typeof description !== 'string') {
       return NextResponse.json({ error: 'Meal description is required' }, { status: 400 });
+    }
+
+    if (description.length > MAX_DESCRIPTION_LEN) {
+      return NextResponse.json({ error: 'Description too long' }, { status: 413 });
     }
 
     const openAIService = new OpenAIService({

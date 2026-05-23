@@ -1,6 +1,10 @@
 import { OpenAIService } from '@/lib/openai';
 import { NextResponse } from 'next/server';
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_DESCRIPTION_LEN = 2000;
+const MAX_PROMPT_LEN = 4000;
+
 export async function POST(request: Request) {
   try {
     const apiKey = request.headers.get('X-OpenAI-Key');
@@ -12,6 +16,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 });
     }
 
+    if (imageAnalysisPrompt && imageAnalysisPrompt.length > MAX_PROMPT_LEN) {
+      return NextResponse.json({ error: 'Custom prompt is too long' }, { status: 413 });
+    }
+
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength && contentLength > MAX_IMAGE_BYTES) {
+      return NextResponse.json({ error: 'Image too large (max 5MB)' }, { status: 413 });
+    }
+
     const formData = await request.formData();
     const imageFile = formData.get('image') as File;
     const description = formData.get('description') as string | null;
@@ -20,7 +33,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Image file is required' }, { status: 400 });
     }
 
-    // Convert file to base64
+    if (imageFile.size > MAX_IMAGE_BYTES) {
+      return NextResponse.json({ error: 'Image too large (max 5MB)' }, { status: 413 });
+    }
+
+    if (description && description.length > MAX_DESCRIPTION_LEN) {
+      return NextResponse.json({ error: 'Description too long' }, { status: 413 });
+    }
+
     const bytes = await imageFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64Image = buffer.toString('base64');
@@ -33,7 +53,6 @@ export async function POST(request: Request) {
     });
 
     const result = await openAIService.analyzeImageData(base64Image, description || undefined);
-    console.log(result, 'result');
     return NextResponse.json({
       message: 'Image analyzed successfully',
       nutritionData: result.data,
